@@ -1,9 +1,5 @@
- """ATS Resume Analyzer - Streamlit + Google Gemini Flash.
-
-Upload a resume (PDF / DOCX / TXT) and get an ATS score, section scores,
-keyword analysis and concrete suggestions to improve it.
-"""
-
+ # ATS Resume Analyzer - Streamlit + Google Gemini Flash
+# Upload a resume (PDF / DOCX / TXT) and get an ATS score and improvement tips.
 import json
 import os
 import re
