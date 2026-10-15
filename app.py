@@ -1,4 +1,4 @@
-"""ATS Resume Analyzer - Streamlit + Google Gemini Flash.
+ """ATS Resume Analyzer - Streamlit + Google Gemini Flash.
 
 Upload a resume (PDF / DOCX / TXT) and get an ATS score, section scores,
 keyword analysis and concrete suggestions to improve it.
@@ -18,7 +18,10 @@ from pypdf import PdfReader
 # ----------------------------------------------------------------------------
 # Config
 # ----------------------------------------------------------------------------
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Primary model first; if Google retires it (404), the next one is tried automatically.
+MODEL_CANDIDATES = [
+    m for m in (os.getenv("GEMINI_MODEL"), "gemini-3.8-flash", "gemini-flash-latest") if m
+]
 MAX_RESUME_CHARS = 15000  # keeps the prompt small and fast
 MAX_FILE_MB = 5
 MIN_TEXT_CHARS = 200  # below this we assume the file has no readable text
@@ -193,15 +196,23 @@ def normalize_result(data: dict) -> dict:
 
 def analyze_resume(api_key: str, resume_text: str, job_description: str) -> dict:
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=build_prompt(resume_text, job_description),
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            response_mime_type="application/json",
-        ),
+    prompt = build_prompt(resume_text, job_description)
+    config = types.GenerateContentConfig(
+        temperature=0.2,
+        response_mime_type="application/json",
     )
-    return normalize_result(parse_json(response.text))
+    last_error = None
+    for model in MODEL_CANDIDATES:
+        try:
+            response = client.models.generate_content(model=model, contents=prompt, config=config)
+            return normalize_result(parse_json(response.text))
+        except Exception as e:  # try the next model only if this one is unavailable
+            msg = str(e)
+            if "404" in msg or "NOT_FOUND" in msg:
+                last_error = e
+                continue
+            raise
+    raise last_error
 
 
 # ----------------------------------------------------------------------------
